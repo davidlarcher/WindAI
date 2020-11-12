@@ -26,7 +26,7 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from pyproj import Proj
 
-import floris.utilities as geo
+from WindAI.floris import utilities as geo
 
 
 class WindRose:

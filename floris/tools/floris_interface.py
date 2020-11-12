@@ -23,7 +23,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-from floris.simulation import Floris, Turbine, WindMap, TurbineMap
+from WindAI.floris.simulation import Floris, Turbine, WindMap, TurbineMap
 
 from .cut_plane import CutPlane, get_plane_from_flow_data
 from .flow_data import FlowData
