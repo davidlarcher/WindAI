@@ -24,7 +24,7 @@ from WindAI.floris.tools import visualization as vis
 #from tools.optimization.scipy.yaw import YawOptimization
 
 
-def farminit(num_wt):
+def farminit(num_wt_rows, num_wt_cols):
     print("Running FLORIS with no yaw...")
     # Instantiate the FLORIS object
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,16 +34,23 @@ def farminit(num_wt):
     )
     # Set turbine locations to 2 turbines in a row
     D = fi.floris.farm.turbines[0].rotor_diameter
-    print(num_wt)
-    layout_x = [7 * D * i for i in range(0, num_wt)]
-    layout_y = [0] * num_wt
-    print(layout_x, layout_y)
+    # layout_x = [7 * D * i for i in range(0, num_wt_cols)]
+    # [0] * num_wt
+    dist_factor = 7
+    layout_x = []
+    layout_y = []
+
+    for row in range(0, num_wt_rows):
+        for col in range(0, num_wt_cols):
+            layout_x += [dist_factor * D * col]
+            layout_y += [dist_factor * D * row]
+
+    print("layout", layout_x, layout_y)
     fi.reinitialize_flow_field(layout_array=(layout_x, layout_y))
     return fi
 
 
-
-def plotfarm(fi):
+def plotfarm(fi, wind_angle, wind_speed, variation=None):
     print("Plotting the FLORIS flowfield...")
     # =============================================================================
     # Initialize the horizontal cut
@@ -51,7 +58,10 @@ def plotfarm(fi):
     # Plot and show
     fig, ax = plt.subplots()
     wfct.visualization.visualize_cut_plane(hor_plane, ax=ax)
-    ax.set_title("Baseline Case for U = 8 m/s, Wind Direction = 270$^\circ$")
+    if variation:
+        ax.set_title(f'U = {wind_speed} m/s, Wind Direction = {wind_angle}°, Power variation : {round(variation,2)} %')
+    else:
+        ax.set_title(f'U = {wind_speed} m/s, Wind Direction = {wind_angle}°')
     plt.show()
 
 

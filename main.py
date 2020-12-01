@@ -14,6 +14,7 @@ from ray import tune
 from ray.tune import grid_search
 from ray.rllib.models import ModelCatalog
 from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.agents.sac import SACTrainer
 from ray.rllib.models.tf.tf_modelv2 import TFModelV2
 from ray.rllib.models.tf.fcnet import FullyConnectedNetwork
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
@@ -30,10 +31,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="PPO")
 parser.add_argument("--torch", action="store_false")
 parser.add_argument("--as-test", action="store_true")
-parser.add_argument("--stop-iters", type=int, default=20)
+parser.add_argument("--stop-iters", type=int, default=10)
 parser.add_argument("--stop-timesteps", type=int, default=100000)
-parser.add_argument("--stop-reward", type=float, default=0.1)
-parser.add_argument("--numwt", type=int, default=2)
+parser.add_argument("--stop-reward", type=float, default=100.)
+parser.add_argument("--num-wt-rows", type=int, default=3)
+parser.add_argument("--num-wt-cols", type=int, default=3)
 
 
 class CustomModel(TFModelV2):
@@ -79,14 +81,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # initialize Farm
-    farm = farminit(args.numwt)
-    plotfarm(farm)
-    farm.calculate_wake()
+    farm = farminit(args.num_wt_rows, args.num_wt_cols)
+    plotfarm(farm, 270., 8.)
     # Initial power output
-    initial_power = farm.get_farm_power()
-    print(f'initial power {initial_power}')
+    # initial_power = farm.get_farm_power()
+    # print(f'initial power {initial_power}')
 
-    ray.init()
+    ray.init(num_gpus=4)
 
     # Can also register the env creator function explicitly with:
     # register_env("corridor", lambda config: SimpleCorridor(config))
@@ -94,23 +95,47 @@ if __name__ == "__main__":
         "my_model", TorchCustomModel if args.torch else CustomModel)
 
     env_config = {
-            "num_wind_turbines": args.numwt,
+            "num_wind_turbines": args.num_wt_rows * args.num_wt_cols,
             "farm": farm,
-            "initial_power": initial_power,
+            "max_yaw": 20,
+            "min_wind_speed": 5,
+            "max_wind_speed": 6,
+            "min_wind_angle": 250,
+            "max_wind_angle": 290
         }
 
     config = {
         "env": FarmEnv,
         "env_config": env_config,
         # Use GPUs if `RLLIB_NUM_GPUS` env var set to > 0.
-        "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
+        "num_gpus": 4,  # int(os.environ.get("RLLIB_NUM_GPUS", "0")),
         "model": {
             "custom_model": "my_model",
         },
         "vf_share_layers": True,
-        "lr": 1e-2,  # grid_search([1e-2, 1e-4, 1e-6]),  # try different lrs
-        "num_workers": 1,  # parallelism
+        # "vf_loss_coeff": 0.5,
+        "lr": 1e-2, # grid_search([1e-2, 1e-4, 1e-6]),  # try different lrs
+        "num_workers": 2,  # parallelism
         "framework": "torch" if args.torch else "tf",
+    }
+
+    config_SAC = {
+        "env": FarmEnv,
+        "env_config": env_config,
+        # Use GPUs if `RLLIB_NUM_GPUS` env var set to > 0.
+        "num_gpus": 4,  # int(os.environ.get("RLLIB_NUM_GPUS", "0")),
+        "model": {
+            "custom_model": "my_model",
+        },
+        # "vf_share_layers": True,
+        # "vf_loss_coeff": 0.5,
+        #  "lr": grid_search([1e-2, 1e-4, 1e-6]),  # try different lrs
+        "num_workers": 4,  # parallelism
+        "framework": "torch" if args.torch else "tf",
+        "policy_model": {
+            "fcnet_activation": "relu",
+            "fcnet_hiddens": [512, 512],
+        },
     }
 
     stop = {
@@ -124,8 +149,8 @@ if __name__ == "__main__":
     # list of lists: one list per checkpoint; each checkpoint list contains
     # 1st the path, 2nd the metric value
     checkpoints = results.get_trial_checkpoints_paths(
-        trial=results.get_best_trial("episode_reward_mean", mode='max'),
-        metric="episode_reward_mean")
+        trial = results.get_best_trial("episode_reward_mean", mode='max'),
+        metric = "episode_reward_mean")
     checkpoint_path, _ = checkpoints[0]
     agent = PPOTrainer(config=config)
     agent.restore(checkpoint_path=checkpoint_path)
@@ -136,8 +161,8 @@ if __name__ == "__main__":
     # run until episode ends
     episode_reward = 0
     done = False
-    obs = env.reset()
     for i in range(0, 10):
+        obs = env.reset()
         action = agent.compute_action(obs)
         obs, reward, done, info = env.step(action=action, plot=True)
         episode_reward += reward
