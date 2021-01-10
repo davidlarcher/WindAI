@@ -133,10 +133,10 @@ def cosd(angle):
     Cosine of an angle with the angle given in degrees.
 
     Args:
-        angle (float): Angle in degrees.
+        angle List(float): Angle in degrees.
 
     Returns:
-        float
+        List(float)
     """
     return np.cos(np.radians(angle))
 
@@ -146,10 +146,10 @@ def sind(angle):
     Sine of an angle with the angle given in degrees.
 
     Args:
-        angle (float): Angle in degrees.
+        angle List(float): Angle in degrees.
 
     Returns:
-        float
+        List(float)
     """
     return np.sin(np.radians(angle))
 
@@ -165,6 +165,20 @@ def tand(angle):
         float
     """
     return np.tan(np.radians(angle))
+
+
+def sin_cos_to_angle(sin_cos):
+    """
+    Returns an Angle in degrees based on sin and cos os given angle.
+
+    Args:
+        sin_cos(np array): sin in first argument, and cos in second
+
+    Returns:
+        float
+    """
+    angle = np.degrees(np.arctan2(sin_cos[0], sin_cos[1]))
+    return angle
 
 
 def wrap_180(x):

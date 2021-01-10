@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # This import registers the 3D projection, but is otherwise unused.
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 
-import floris.tools as wfct
+import WindAI.floris.tools as wfct
 
 
 # Initialize the FLORIS interface fi

@@ -19,7 +19,7 @@
 
 import matplotlib.pyplot as plt
 
-import floris.tools as wfct
+import WindAI.floris.tools as wfct
 
 
 # Initialize the FLORIS interface for 4 seperate models defined as JSONS

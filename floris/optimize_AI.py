@@ -45,7 +45,6 @@ def farminit(num_wt_rows, num_wt_cols):
             layout_x += [dist_factor * D * col]
             layout_y += [dist_factor * D * row]
 
-    print("layout", layout_x, layout_y)
     fi.reinitialize_flow_field(layout_array=(layout_x, layout_y))
     return fi
 
@@ -54,7 +53,7 @@ def plotfarm(fi, wind_angle, wind_speed, variation=None):
     print("Plotting the FLORIS flowfield...")
     # =============================================================================
     # Initialize the horizontal cut
-    hor_plane = fi.get_hor_plane(x_resolution=400, y_resolution=100)
+    hor_plane = fi.get_hor_plane(height=fi.floris.farm.turbines[0].hub_height)  #  x_resolution=400, y_resolution=100)
     # Plot and show
     fig, ax = plt.subplots()
     wfct.visualization.visualize_cut_plane(hor_plane, ax=ax)

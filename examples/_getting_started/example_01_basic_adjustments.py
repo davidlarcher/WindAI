@@ -15,7 +15,7 @@
 
 import matplotlib.pyplot as plt
 
-import floris.tools as wfct
+import WindAI.floris.tools as wfct
 
 
 """
