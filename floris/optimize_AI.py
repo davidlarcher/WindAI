@@ -17,6 +17,7 @@ import os
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.backends.backend_agg as agg
 
 
 from WindAI.floris import tools as wfct
@@ -62,6 +63,19 @@ def plotfarm(fi, wind_angle, wind_speed, variation=None):
     else:
         ax.set_title(f'U = {wind_speed} m/s, Wind Direction = {wind_angle}°')
     plt.show()
+
+def plotfarm_sim(fi, wind_angle, wind_speed, variation=None):
+    print("Plotting the FLORIS flowfield...")
+    # =============================================================================
+    # Initialize the horizontal cut
+    hor_plane = fi.get_hor_plane(height=fi.floris.farm.turbines[0].hub_height)  #  x_resolution=400, y_resolution=100)
+    # Plot and show
+    fig, ax = plt.subplots()
+    wfct.visualization.visualize_cut_plane(hor_plane, ax=ax)
+    canvas = agg.FigureCanvasAgg(fig)
+    canvas.draw()
+    renderer = canvas.get_renderer()
+    raw_data = renderer.tostring_rgb()
 
 
 def yawptimize():
