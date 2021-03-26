@@ -17,8 +17,6 @@ import ray
 from ray import tune
 from ray.tune import grid_search
 from ray.rllib.models import ModelCatalog
-from ray.rllib.agents.ppo import PPOTrainer
-from ray.rllib.agents.sac import SACTrainer
 from ray.rllib.models.tf.tf_modelv2 import TFModelV2
 from ray.rllib.models.tf.fcnet import FullyConnectedNetwork
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
@@ -28,7 +26,7 @@ from ray.rllib.utils.test_utils import check_learning_achieved
 from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.agents.sac import SACTrainer
 from ray.rllib.agents.ddpg import DDPGTrainer
-from WindAI.floris.optimize_AI import farminit, plotfarm
+from WindAI.floris.optimize_AI import farminit
 from WindAI.floris import tools as wfct
 from WindAI.farm_env.env import FarmEnv
 from WindAI.agent_configs import config_PPO, config_SAC, config_DDPG
@@ -37,7 +35,7 @@ torch, nn = try_import_torch()
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="SAC")
-parser.add_argument("--torch", action="store_false")
+parser.add_argument("--torch", action="store_true")
 parser.add_argument("--num-wt-rows", type=int, default=1)
 parser.add_argument("--num-wt-cols", type=int, default=2)
 
@@ -153,7 +151,10 @@ if __name__ == "__main__":
         }
         agent = DDPGTrainer(config=config)
 
-    checkpoint_path = '/home/david/ray_results/SAC/SAC_FarmEnv_ff600_00000_0_2021-02-06_14-34-11/checkpoint_50/checkpoint-50'
+
+    #  '/home/david/ray_results/SAC/SAC_FarmEnv_ff600_00000_0_2021-02-06_14-34-11/checkpoint_50/checkpoint-50'
+
+    checkpoint_path = '/home/david/ray_results/SAC/SAC_FarmEnv_305d2_00000_0_2021-03-24_08-40-22/checkpoint_10/checkpoint-10'
 
     agent.restore(checkpoint_path=checkpoint_path)
 
@@ -165,7 +166,6 @@ if __name__ == "__main__":
     arrow_x = 250
     arrow_y = 5
 
-
     screen = pygame.display.set_mode((800, 600))
 
     pygame.display.set_caption('WindAI')
@@ -173,14 +173,23 @@ if __name__ == "__main__":
 
     def update_env():
 
-        farm.reinitialize_flow_field(wind_direction=[wd], wind_speed=[ws])
-        farm.calculate_wake()
-        nominal_power = farm.get_farm_power()
         obs = env.reset(wd=wd, ws=ws)
+        print(f'initializing flow filed for  {wd} with {env.cur_yaws}')
+        farm.reinitialize_flow_field(wind_direction=[wd], wind_speed=[ws])
+
+        farm.calculate_wake(yaw_angles=env.cur_yaws)
+        nominal_power = farm.get_farm_power()
+        print(f'nominal power {nominal_power}')
+
         action = agent.compute_action(obs)
-        obs, reward, done, info = env.step(action=action)
-        yaw_angles = action * 20
-        farm.calculate_wake(yaw_angles=yaw_angles)
+        print(f'actions : {action}')
+        #  Execute the actions
+        if env.continuous_action_space:
+            env.cur_yaws = action * env.allowed_yaw
+        else:
+            env.cur_yaws = action - env.allowed_yaw
+        farm.calculate_wake(yaw_angles=env.cur_yaws)
+        # obs, reward, done, info = env.step(action=action, no_variation=True)
         steering_power = farm.get_farm_power()
 
         hor_plane = farm.get_hor_plane(
@@ -194,6 +203,7 @@ if __name__ == "__main__":
         size = canvas.get_width_height()
         raw_data = renderer.tostring_rgb()
         surf = pygame.image.fromstring(raw_data, size, "RGB")
+
         return surf, nominal_power, steering_power
 
     farm_img, power, new_power = update_env()
@@ -248,33 +258,7 @@ if __name__ == "__main__":
         arrow()
         pygame.display.update()
 
-    # for cur_yaws_angle in range(-20,20, 20):
-        # cur_yaws = np.full((num_wt,), cur_yaws_angle, dtype=np.int32)
-        # print(f'current yaws {cur_yaws}')
-        # farm.calculate_wake(yaw_angles=cur_yaws)
-        # turbine_powers = np.array(farm.get_turbine_power())
-        # turbine_powers = turbine_powers / np.max(turbine_powers)
-        # print(f'turbulent powers : {turbine_powers}')
-        #
-        # turbine_ti = farm.get_turbine_ti()
-        # print(f'turbulent intensity : {turbine_ti}')
-        # farm.get_turbine_ct()
-        #
-        # turbine_ct = farm.get_turbine_ct()
-        # print(f'turbine thrust coef : {turbine_ct}')
-        #
-        # layout = farm.get_turbine_layout()
-        # print(f'layout {layout}')
-        #
-        # points = farm.get_set_of_points(layout[0], layout[1],
-        #                                                       [80.] * num_wt)
-        # u_speed = np.array(points.u) / wind_speed
-        # v_speed = np.array(points.v) / wind_speed
-        # print(u_speed)
-        # print(v_speed)
-        # # print(np.array(points.v))
-        # print(np.degrees(np.arctan2(v_speed, u_speed)))
-        # print(points.w)
+
 
 
 

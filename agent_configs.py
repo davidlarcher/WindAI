@@ -1,5 +1,5 @@
 
-number_of_workers = 3
+number_of_workers = 4
 
 config_SAC = {
     # "gamma": 0.5,
@@ -64,11 +64,11 @@ config_SAC = {
     "training_intensity": None,
 
     # === Optimization ===
-    "optimization": {
-        "actor_learning_rate": 3e-4,# 1e-6,  # grid_search([0.0003, 0.0001]),  # 3e-4,
-        "critic_learning_rate": 3e-4,# 2e-5,  # grid_search([0.003, 0.0003]),  # 3e-4,
-        "entropy_learning_rate": 3e-4,# 1e-3,  # grid_search([0.003, 0.0003]), # 3e-4,
-    },
+    # "optimization": {
+    #     "actor_learning_rate": 3e-4,# 1e-6,  # grid_search([0.0003, 0.0001]),  # 3e-4,
+    #     "critic_learning_rate": 3e-4,# 2e-5,  # grid_search([0.003, 0.0003]),  # 3e-4,
+    #     "entropy_learning_rate": 3e-4,# 1e-3,  # grid_search([0.003, 0.0003]), # 3e-4,
+    # },
     # If not None, clip gradients during optimization at this value.
     "grad_clip": 0.8,
     # How many steps of the model to sample before learning starts.

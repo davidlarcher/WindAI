@@ -1,12 +1,10 @@
-from abc import ABC
-
 import gym
 from math import isnan
 from gym.spaces import Discrete, MultiDiscrete, Box
 import numpy as np
-from WindAI.floris.optimize_AI import plotfarm
 from WindAI.floris.tools import flow_data
 from WindAI.floris.utilities import cosd, sind, sin_cos_to_angle
+from WindAI.floris.optimize_AI import farminit
 import pandas as pd
 
 
@@ -44,7 +42,8 @@ class FarmEnv(gym.Env):
         195.0 over 100 consecutive trials.
     """
     def __init__(self, config):
-        self.numwt = config["num_wind_turbines"]
+        self.farm = config['farm']
+        self.numwt = config['num_wind_turbines']
 
         # initialize yaw boundaries
         self.allowed_yaw = config["max_yaw"]
@@ -53,9 +52,8 @@ class FarmEnv(gym.Env):
         self.max_wind_speed = config["max_wind_speed"]
         self.min_wind_angle = config["min_wind_angle"]
         self.max_wind_angle = config["max_wind_angle"]
-        self.farm = config["farm"]
+
         self.continuous_action_space = config["continuous_action_space"]
-        self.farm_layout = self.farm.get_turbine_layout()
 
         self.best_explored_power = {}
         self.count_steps = 0
@@ -70,6 +68,10 @@ class FarmEnv(gym.Env):
 
         self.cur_wind_speed = [8.]  # in kts
         self.cur_wind_angle = [270.]  # in degrees
+
+        self.initial_wind_angle = 0  # in kts
+        self.max_wind_direction_variation = 10,  # max wind angle variation during episode
+
         self.cur_nominal_power = 0
         self.cur_power = 0
         self.cur_power_ratio = 0
@@ -141,13 +143,13 @@ class FarmEnv(gym.Env):
         else:
             self.cur_wind_speed = np.random.uniform(self.min_wind_speed, self.max_wind_speed)
 
-
+        self.initial_wind_angle = self.cur_wind_angle
 
         # Update the flow in the model
         print(f'wind angle {self.cur_wind_angle}')
         print(f'wind speed {self.cur_wind_speed}')
         self.farm.reinitialize_flow_field(wind_direction=[self.cur_wind_angle], wind_speed=[self.cur_wind_speed])
-        self.farm.calculate_wake(yaw_angles=self.cur_yaws)
+        self.farm.calculate_wake()
         self.cur_nominal_power = self.farm.get_farm_power()
         self.best_explored_power[self.cur_wind_angle] = self.cur_nominal_power
         self.cur_nominal_ti_sum = np.sum(self.farm.get_turbine_ti())
@@ -159,7 +161,7 @@ class FarmEnv(gym.Env):
         return state  # return current state of the environment
 
     def get_observation(self):
-        self.turbulent_intensities = (np.array(self.farm.get_turbine_ti())-0.055)/0.07
+        self.turbulent_intensities = (np.array(self.farm.get_turbine_ti())-0.055)/0.07 #rescaling
         self.cur_power = self.farm.get_farm_power()
 
         # self.thrust_coefs = self.farm.get_turbine_ct()
@@ -193,7 +195,7 @@ class FarmEnv(gym.Env):
 
         return observation
 
-    def step(self, action, plot=False):
+    def step(self, action, no_variation=False):
 
         # check actions validity
         err_msg = "%r (%s) invalid" % (action, type(action))
@@ -207,6 +209,14 @@ class FarmEnv(gym.Env):
 
         print(f'current yaws {self.cur_yaws}')
 
+        if not no_variation:
+            # Apply wind variation
+            if self.cur_wind_angle <= self.initial_wind_angle + self.max_wind_direction_variation[0] or self.cur_wind_angle >= self.initial_wind_angle - self.max_wind_direction_variation[0]:
+                self.cur_wind_angle = self.cur_wind_angle + np.random.randint(-1, 2)
+            self.farm.reinitialize_flow_field(wind_direction=[self.cur_wind_angle], wind_speed=[self.cur_wind_speed])
+            print(f'new {self.cur_wind_angle}')
+            self.farm.calculate_wake()
+            self.cur_nominal_power = self.farm.get_farm_power()
         # Get the Observations from the simulation
         self.farm.calculate_wake(yaw_angles=self.cur_yaws)
 
@@ -224,34 +234,15 @@ class FarmEnv(gym.Env):
         reward = self.cur_power_ratio * 100
         print(f'power ratio       {self.cur_power_ratio}')
 
-        if self.cur_power > self.best_explored_power[self.cur_wind_angle]:
-            self.best_explored_power[self.cur_wind_angle] = self.cur_power
+        # if self.cur_power > self.best_explored_power[self.cur_wind_angle]:
+        #     self.best_explored_power[self.cur_wind_angle] = self.cur_power
 
         self.count_steps += 1
 
         # Done Evaluation
-        done = True
-
-        # if turbulence_factor < 0.09 and self.count_steps == 1: #pas de wake a optimiser de base
-        #     done = True
-        #     print("pas de wake a optimiser de base")
-        # elif self.count_steps > 4 * self.allowed_yaw: #  * self.numwt:  # test more scenarios per policy when there is more wind turbines
-        #     done = True
-        #     print("on n'a pas réussi à optimiser")
-        # elif power_ratio >= 0.08 :
-        #     done = True
-        #     reward = 100 * power_ratio
-        #     print('on a réussi à optimiser')
-        # else:
-        #     done = False
-
-        if plot:
-            improvement = self.cur_power_ratio * 100
-            plotfarm(self.farm, self.cur_wind_angle, self.cur_wind_speed,  improvement)
-            print(f'{improvement} % par rapport au nominal')
-            print(f'action {action}')
-            print(f' commanded yaws {self.cur_yaws}')
-            print(f'obs {observation}')
-            print(f'reward {reward}')
+        if self.count_steps == 30:
+            done = True
+        else:
+            done = False
 
         return observation, reward, done, {}

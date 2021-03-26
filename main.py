@@ -1,18 +1,12 @@
-
-"""Example of a custom gym environment and model. Run this for a demo.
-This example shows:
-  - using a custom environment
-  - using a custom model
-  - using Tune for grid search
-You can visualize experiment results in ~/ray_results using TensorBoard.
-"""
 import argparse
 import os
+import numpy as np
 
 import ray
 from ray import tune
 
 from ray.tune import grid_search
+from ray.tune.schedulers import PopulationBasedTraining
 from ray.rllib.models import ModelCatalog
 from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.agents.sac import SACTrainer
@@ -26,20 +20,21 @@ from ray.rllib.utils.framework import try_import_tf, try_import_torch
 from ray.rllib.utils.test_utils import check_learning_achieved
 from WindAI.farm_env.env import FarmEnv
 from WindAI.agent_configs import config_PPO, config_SAC, config_DDPG
-from WindAI.floris.optimize_AI import farminit, plotfarm
+from WindAI.floris.optimize_AI import farminit
 from pprint import pprint
 
 tf1, tf, tfv = try_import_tf()
 torch, nn = try_import_torch()
 parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="SAC")
-parser.add_argument("--torch", action="store_false")
+parser.add_argument("--torch", action="store_true")
 parser.add_argument("--as-test", action="store_true")
 parser.add_argument("--stop-iters", type=int, default=1000)
-parser.add_argument("--stop-timesteps", type=int, default=1000000)
+parser.add_argument("--stop-timesteps", type=int, default=10000)
 parser.add_argument("--stop-reward", type=float, default=100.)
 parser.add_argument("--num-wt-rows", type=int, default=1)
 parser.add_argument("--num-wt-cols", type=int, default=2)
+
 
 class CustomModel(TFModelV2):
     """Example of a keras custom model that just delegates to an fc-net."""
@@ -64,7 +59,6 @@ class TorchCustomModel(TorchModelV2, nn.Module):
 
     def __init__(self, obs_space, action_space, num_outputs, model_config,
                  name):
-        print(f'CUDA {torch.cuda.is_available()}')
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs,
                               model_config, name)
         nn.Module.__init__(self)
@@ -139,12 +133,27 @@ if __name__ == "__main__":
         **agent_config,
         **general_config
     }
-    print(config)
+
+    scheduler = PopulationBasedTraining(
+        time_attr="training_iteration",
+        metric="episode_reward_mean",
+        mode="max",
+        perturbation_interval=5,
+        hyperparam_mutations={
+            # distribution for resampling
+            "optimization": {
+                "actor_learning_rate": lambda: np.random.uniform(0.0001, 0.01),# 1e-6,  # grid_search([0.0003, 0.0001]),  # 3e-4,
+                "critic_learning_rate": lambda: np.random.uniform(0.0001, 0.01),# 2e-5,  # grid_search([0.003, 0.0003]),  # 3e-4,
+                "entropy_learning_rate": lambda: np.random.uniform(0.0001, 0.01),# 1e-3,  # grid_search([0.003, 0.0003]), # 3e-4,
+            }
+        })
     results = tune.run(
         args.run,
         config=config,
+        scheduler=scheduler,
+        num_samples=4,
         stop=stop,
-        checkpoint_freq=10,
+        # checkpoint_freq=10,
         checkpoint_at_end=True,
         # restore="/home/david/ray_results/SAC/SAC_FarmEnv_5aa8e_00000_0_2021-01-21_18-23-19/checkpoint_199/checkpoint-199",
     )
@@ -163,24 +172,6 @@ if __name__ == "__main__":
     checkpoint_path, _ = checkpoints[0]
     print(f'checkpoint_path {checkpoint_path}')
     #  agent = PPOTrainer(config=config_PPO)
-
-    agent.restore(checkpoint_path=checkpoint_path)
-    policy = agent.get_policy()
-    if args.torch:
-        pprint(repr(policy))
-    else:
-        policy.base_model.summary()
-    # instantiate env class
-    env = FarmEnv(env_config)
-
-    # run until episode ends
-    episode_reward = 0
-    done = False
-    for i in range(0, 10):
-        obs = env.reset()
-        action = agent.compute_action(obs)
-        obs, reward, done, info = env.step(action=action, plot=True)
-        episode_reward += reward
 
     if args.as_test:
         check_learning_achieved(results, args.stop_reward)
